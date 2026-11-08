@@ -1,0 +1,21 @@
+# APIキーなど
+.env
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Node / Vite+
+node_modules/
+web/dist/
+
+# 記憶（ReMe）と声の ID は手元だけに置く
+.reme/
+partner/.voice_id
+
+preview.wav
+reply.wav
+
+.DS_Store
