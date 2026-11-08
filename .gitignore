@@ -11,7 +11,8 @@ __pycache__/
 node_modules/
 web/dist/
 
-# 記憶（ReMe）と声の ID は手元だけに置く
+# 描いた画像と動画、記憶（ReMe）、声の ID は手元だけに置く
+data/
 .reme/
 partner/.voice_id
 

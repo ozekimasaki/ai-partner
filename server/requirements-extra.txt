@@ -1,3 +1,0 @@
-# 声（STEP 4 のボイス）と立ち絵の生成（scripts/draw.py）に使う。チャットだけなら不要。
-dashscope>=2.0
-requests>=2.31

@@ -1,13 +1,10 @@
-"""Text-to-speech with a voice designed in the Beijing region. Optional: needs `pip install -r server/requirements-voice.txt`."""
+"""Text-to-speech with a voice designed in the Beijing region. Enabled only when the Beijing key and workspace are set."""
 
 import logging
 import threading
 from pathlib import Path
 
-try:
-    import dashscope
-except ImportError:  # optional dependency; voice stays disabled without it
-    dashscope = None
+import dashscope
 
 log = logging.getLogger("ai-partner.voice")
 
@@ -28,7 +25,7 @@ class Voice:
 
     @property
     def enabled(self) -> bool:
-        return bool(self.api_key and self.workspace and dashscope is not None)
+        return bool(self.api_key and self.workspace)
 
     def _get_client(self):
         if self._client is None:

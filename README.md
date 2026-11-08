@@ -1,12 +1,17 @@
 # ai-partner
 
-APIキーを入れるだけで、Qwen でAIパートナーとブラウザでチャットできるサンプルアプリです。技術書典21 合同誌の章「AIパートナーを作ろう」のおまけです。
+APIキーを入れるだけで、Qwen でAIパートナーとブラウザでチャットできるサンプルアプリです。立ち絵を描く「画像生成」と、立ち絵を動かす「動画生成」のタブも付いています。技術書典21 合同誌の章「AIパートナーを作ろう」のおまけです。
 
 作例として、章に出てくる桜草メイの設定（`partner/partner.md`）を同梱しています。`partner.md` を書き換えれば、あなたのパートナーになります。
 
 - 役を演じるのは Model Studio（シンガポール）の日本語向けモデル `qwen-plus-character-ja` です（`.env` の `PARTNER_MODEL` で `qwen-plus-character` などに替えられます）。呼び方は章の STEP 2 の `talk.py` と同じ、OpenAI 互換の SDK です。
 - サーバーは Python（FastAPI）、画面は Vite+（React + TypeScript）です。APIキーはサーバーの中だけで使い、ブラウザには渡しません。
-- 記憶（ReMe）と声（北京のボイスデザイン）と立ち絵は任意です。設定しなければ無効のまま、チャットだけで動きます。
+- 画像生成は章の STEP 4 と同じ `qwen-image-3.0-pro`（失敗したら `qwen-image-2.0-pro` で描き直し）、動画生成は `wan3.0-video` です。どちらもチャットと同じシンガポールのキーで動きます。
+- 記憶（ReMe）と声（北京のボイスデザイン）は任意です。設定しなければ無効のまま動きます。
+
+| チャット | 画像生成 | 動画生成 |
+|---|---|---|
+| 立ち絵と名前を左に出したまま、吹き出しで話します | プリセットから描いて「立ち絵に設定」 | 立ち絵を最初のフレームにして動かします |
 
 ## 必要なもの
 
@@ -37,7 +42,7 @@ Vite+ は `web/` の依存として自動で入るので、別に入れる必要
 
    ダブルクリックで起動したいときは、Mac は `start.command`、Windows は `start.bat` を使います（Mac で「開けません」と出たら、右クリック → 開く）。
 
-3. 初回は `.env` が自動で作られ、キーが空のまま起動します。画面に「APIキーが設定されていません」と出るので、いったん Ctrl+C で止めて、`.env` を開いてキーとワークスペースIDを書きます。
+3. 初回は `.env` が自動で作られ、キーが空のまま起動します。画面に「はじめに」の案内（キーの作り方、`.env` の場所、書く2行）が出るので、いったん Ctrl+C で止めて、`.env` を開いてキーとワークスペースIDを書きます。
 
    ```text
    DASHSCOPE_API_KEY=sk-xxxxxxxx
@@ -54,11 +59,11 @@ Vite+ は `web/` の依存として自動で入るので、別に入れる必要
 python3 start.py --mock
 ```
 
-決まった返事を返すモックで起動します。画面の見た目や動きを確かめたいときに使ってください。ほかに `--port 8001`（ポートを変える）、`--no-browser`（ブラウザを開かない）、`--dev`（画面を編集しながら確かめる開発モード）があります。
+決まった返事を返すモックで起動します。画像生成はシルエットの仮の画像（SVG）を、動画生成は数秒で「完成」になる仮のタスクを返します（動画ファイルはできません）。画面の見た目や動きを確かめたいときに使ってください。ほかに `--port 8001`（ポートを変える）、`--no-browser`（ブラウザを開かない）、`--dev`（画面を編集しながら確かめる開発モード）があります。
 
 ### Base URL について
 
-`DASHSCOPE_WORKSPACE_ID` を入れると、章と同じ `https://{WorkspaceId}.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1` を使います。空のときは `https://dashscope-intl.aliyuncs.com/compatible-mode/v1` を使います。手元の `transformers serve` などへ向けたいときは、`DASHSCOPE_BASE_URL` に Base URL を丸ごと書きます（章の「手元のマシンで動かす」のコラム）。
+`DASHSCOPE_WORKSPACE_ID` を入れると、章と同じ `https://{WorkspaceId}.ap-southeast-1.maas.aliyuncs.com` の `/compatible-mode/v1`（チャット）と `/api/v1`（画像・動画）を使います。空のときは `https://dashscope-intl.aliyuncs.com` を使います。手元の `transformers serve` などへ向けたいときは、`DASHSCOPE_BASE_URL` に Base URL を丸ごと書きます（章の「手元のマシンで動かす」のコラム）。
 
 ## 自分のパートナーにする
 
@@ -67,24 +72,32 @@ python3 start.py --mock
 | ファイル | 中身 |
 |---|---|
 | `partner/partner.md` | キャラクターの設定。そのままシステムメッセージになります（章の STEP 1） |
-| `partner/partner.png` | 立ち絵（任意）。置くと画面の左に表示されます。`.webp` `.jpg` も可 |
-| `partner/partner_image.txt` | 立ち絵を描くときのプロンプト（`scripts/draw.py` が使う） |
+| `partner/partner.png` | 立ち絵（任意）。画面の左に表示されます。画像生成タブの「立ち絵に設定」でも置けます。`.webp` `.jpg` も可 |
+| `partner/partner_image.txt` | 立ち絵のプロンプト。画像生成タブの最初のプリセットになります（`scripts/draw.py` も使う） |
+| `partner/image_presets.md` | 画像生成タブのプリセット（差分）。`## 見出し` ごとに1つ |
 | `partner/partner_voice.txt` | 声の説明（声を使うときだけ） |
 
 画面に出る名前は、`partner.md` の「# 人物」の最初の一文（作例なら「桜草メイ」）から取ります。うまく取れないときは `.env` の `PARTNER_NAME` に書きます。モデルは `.env` の `PARTNER_MODEL` で替えます。既定の `qwen-plus-character-ja` は日本語のキャラクター会話向けですが、コンテキストが 8,192 と短めです。長い会話や記憶を足して「長すぎる」というエラーが出るときは、`HISTORY_TURNS` を減らすか、`PARTNER_MODEL=qwen-plus-character`（シンガポールで 131,072）に替えてください。
 
-会話の履歴はブラウザ（localStorage）に残り、モデルへは直近の `HISTORY_TURNS` 往復（既定10）だけを、`partner.md` を先頭にして渡します。「リセット」で履歴を消せます。
+会話の履歴はブラウザ（localStorage）に残り、モデルへは直近の `HISTORY_TURNS` 往復（既定10）だけを、`partner.md` を先頭にして渡します。「会話を消す」で履歴を消せます。返事の途中で「止める」を押すと、そこまでの返事を残して止まります。
+
+## 画像生成タブ
+
+- プリセット（`partner_image.txt` と `image_presets.md`）を選ぶか、日本語でプロンプトを書いて「描く」を押します。
+- ネガティブプロンプト（描いてほしくないもの）と縦横比（4:7 = 本の作例の `1536*2688`、9:16、3:4、1:1、4:3、16:9）を選べます。
+- `qwen-image-3.0-pro` が失敗したら、`qwen-image-2.0-pro` で自動的に描き直します（キーの誤りや内容審査で止められたときは描き直しません）。モデルは `.env` の `PARTNER_IMAGE_MODEL` / `PARTNER_IMAGE_FALLBACK_MODEL` で替えられます。
+- 画像のURLは24時間で消えるので、できた画像は `data/images/` に保存します。一覧から「保存」でダウンロード、「立ち絵に設定」で `partner/partner.png` に置きます（それまでの立ち絵は `data/portrait-backup/` に移します）。
+
+コマンドで描きたいときは `python scripts/draw.py`（`.venv` を有効にしてから）でも、`partner_image.txt` から `partner/partner.png` を描けます（章の STEP 4 の `draw.py`）。
+
+## 動画生成タブ
+
+- 最初のフレームにする画像（いまの立ち絵か、描いた画像）を選び、どう動くかを日本語で書いて「動画を作る」を押します。長さは 5 / 10 / 15 秒です。
+- `wan3.0-video` は非同期のタスクです。サーバーがタスクを作り、画面は数秒おきに状態（順番待ち → 生成中 → 完成）を確かめます。数分かかることがあり、タブを離れても、アプリを起動し直しても続きを確かめられます。
+- 完成したら画面で再生でき、「保存」でダウンロードできます。動画は `data/videos/` に保存します。
+- 無料枠は合計30秒ぶんです。超えると課金されるので、Model Studio の Free Quota Only の設定も確かめてください。
 
 ## 任意機能
-
-### 立ち絵を描く
-
-```bash
-pip install -r server/requirements-extra.txt   # .venv を有効にしてから
-python scripts/draw.py
-```
-
-`partner/partner_image.txt` から `qwen-image-3.0-pro` で描いて、`partner/partner.png` に保存します（章の STEP 4 の `draw.py`）。自分で描いた絵を `partner/partner.png` として置いてもかまいません。
 
 ### 記憶（ReMe）
 
@@ -101,14 +114,14 @@ ReMe の記憶にはあなたの個人情報が入ります。`.reme/` は Git �
 
 ### 声（北京のボイスデザイン）
 
-北京のワークスペースとAPIキーを作り、`.env` に書きます。北京のキーを書くと、`start.py` が声用のライブラリ（`dashscope`）も自動で入れます。
+北京のワークスペースとAPIキーを作り、`.env` に書きます（章の STEP 4）。
 
 ```text
 DASHSCOPE_API_KEY_BEIJING=sk-xxxxxxxx
 DASHSCOPE_WORKSPACE_ID_BEIJING=llm-xxxxxxxx
 ```
 
-返事の横に ▶ が出て、押すと読み上げます。初回は `partner/partner_voice.txt` から声を作り、`voice_id` を `partner/.voice_id` に保存して使い回します（作り直したいときはこのファイルを消します）。
+返事の下に「▶ 声で聞く」が出て、押すと読み上げます。初回は `partner/partner_voice.txt` から声を作り、`voice_id` を `partner/.voice_id` に保存して使い回します（作り直したいときはこのファイルを消します）。
 
 ## 動作確認の状況
 
@@ -117,13 +130,17 @@ APIキーなしで次を確認しています。実際の Model Studio は呼ん
 - Linux（Python 3.12、Node 22）で、空の状態から `python3 start.py --mock` が `.venv` の作成、ライブラリの導入、Vite+ でのビルド、起動まで通ること。
 - OpenAI 互換の偽サーバーを立て、実際の `openai` SDK のストリーミングで、`partner.md` がシステムメッセージとして先頭に入ること、履歴が直近だけに絞られること、キーの誤りが画面にわかる文で返ること（`server/tests/`）。
 - ReMe の偽サーバーで、記憶の検索と書き出しのリクエストの形。声は偽の `dashscope` クライアントで、声を一度だけ作って使い回す流れ。
-- モックで、ブラウザから送信して返事がストリーミングで表示されること。
+- 画像生成は偽の `dashscope` で、モデル・サイズ・ネガティブプロンプトの渡し方、`qwen-image-2.0-pro` へのフォールバック（キーの誤りでは描き直さないこと）、保存と「立ち絵に設定」。
+- 動画生成は偽の `dashscope` で、`first_frame` に立ち絵のファイルを渡すこと、タスクを状態が変わるまで確かめ、完成したら保存すること、失敗の理由が画面に出ること。
+- モックで、ブラウザ（Chrome）からチャット・画像生成・動画生成を操作できること。幅 1280px とスマホ幅（390px）の両方の表示。
 
 まだ確かめていないこと:
 
 - 実際のキーでの `qwen-plus-character-ja` / `qwen-plus-character` の返事（Base URL、モデルID、ストリーミング対応、エラー文の対応を含む）。
 - Mac と Windows の実機での起動（`start.py` は両方を想定して書いていますが、動かしたのは Linux だけです）。
-- ReMe の実物、北京のボイスデザインと読み上げ、`scripts/draw.py` の実物の呼び出し。声は `dashscope` 2.0.4 の関数の形（`voice_design.create(prefix=..., language_hints=...)`、戻り値の `voice_id`）に合わせて書いていて、章の `speak.py` とは引数名が少し違います。
+- 実際のキーでの `qwen-image-3.0-pro` / `qwen-image-2.0-pro` の呼び出し。とくに縦横比ごとのサイズ（`928*1664` など）を `qwen-image-3.0-pro` が受け付けるか。
+- 実際のキーでの `wan3.0-video` の呼び出し。`media` の `first_frame` にローカルファイル（`file://`）を渡す形、`duration` に 5 / 10 / 15 を渡せるか、Windows のパスでのアップロード。
+- ReMe の実物、北京のボイスデザインと読み上げ。
 
 ## テスト
 
@@ -143,12 +160,15 @@ cd web && npm install && npm test && npm run check
 start.py              ワンコマンド起動（start.command / start.bat はそのラッパー）
 .env.example          設定の見本（.env にコピーして使う）
 partner/              パートナーの設定（partner.md など）
-server/app.py         FastAPI。/api/chat でモデルを呼び、web/dist を配信する
-server/character.py   partner.md と立ち絵の読み込み
+server/app.py         FastAPI。/api/chat・/api/images・/api/videos と、web/dist の配信
+server/character.py   partner.md、立ち絵、画像のプリセットの読み込み
+server/images.py      画像生成（Qwen-Image）
+server/videos.py      動画生成（Wan、非同期タスク）
 server/memory.py      ReMe（任意）
 server/voice.py       声（任意）
-scripts/draw.py       立ち絵を描く（任意）
+scripts/draw.py       立ち絵をコマンドで描く
 web/                  画面（Vite+ / React / TypeScript）
+data/                 描いた画像と動画（自動で作られます。Git には入りません）
 ```
 
 ## 参考リンク

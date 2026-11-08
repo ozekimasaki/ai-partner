@@ -77,14 +77,12 @@ def venv_python() -> Path:
     return VENV / ("Scripts/python.exe" if IS_WINDOWS else "bin/python")
 
 
-def ensure_python_deps(with_extra: bool) -> Path:
+def ensure_python_deps() -> Path:
     if not venv_python().exists():
         say("Python の仮想環境 .venv を作っています…")
         run([sys.executable, "-m", "venv", VENV])
     py = venv_python()
     reqs = [SERVER / "requirements.txt"]
-    if with_extra:
-        reqs.append(SERVER / "requirements-extra.txt")
     stamp = VENV / ".ai-partner-requirements"
     want = digest(*reqs)
     if not stamp.exists() or stamp.read_text() != want:
@@ -145,8 +143,7 @@ def main() -> None:
 
     ensure_env_file()
     env_values = read_env()
-    with_extra = bool(env_values.get("DASHSCOPE_API_KEY_BEIJING"))
-    py = ensure_python_deps(with_extra)
+    py = ensure_python_deps()
     ensure_web(build=not args.dev)
 
     if port_in_use(args.port):

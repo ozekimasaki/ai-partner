@@ -2,6 +2,7 @@
 
 import json
 import socket
+import tempfile
 import threading
 import time
 from dataclasses import replace
@@ -78,8 +79,10 @@ def settings(base: str = "", **overrides) -> Settings:
     s = Settings(
         api_key="test-key",
         base_url=f"{base}/v1",
+        native_base_url=f"{base}/api/v1",
         model="qwen-plus-character-ja",
         partner_dir=PARTNER_DIR,
+        data_dir=Path(tempfile.mkdtemp(prefix="ai-partner-test-")),
         partner_name="",
         user_name="テスター",
         history_turns=10,
@@ -106,12 +109,15 @@ def test_guess_name_from_partner_md():
 def test_partner_info():
     client = TestClient(create_app(settings()))
     info = client.get("/api/partner").json()
+    assert info["env_path"].endswith(".env")
+    del info["env_path"]
     assert info == {
         "name": "桜草メイ",
         "model": "qwen-plus-character-ja",
         "ready": True,
         "mock": False,
         "image": False,
+        "image_version": 0,
         "memory": False,
         "voice": False,
     }
@@ -248,8 +254,10 @@ def test_default_model_is_japanese_character(tmp_path, monkeypatch):
     s = config.load_settings()
     assert s.model == "qwen-plus-character-ja"
     assert s.base_url == "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+    assert s.native_base_url == "https://dashscope-intl.aliyuncs.com/api/v1"
 
     (tmp_path / ".env").write_text("PARTNER_MODEL=qwen-plus-character\nDASHSCOPE_WORKSPACE_ID=llm-abc\n", encoding="utf-8")
     s = config.load_settings()
     assert s.model == "qwen-plus-character"
     assert s.base_url == "https://llm-abc.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1"
+    assert s.native_base_url == "https://llm-abc.ap-southeast-1.maas.aliyuncs.com/api/v1"
