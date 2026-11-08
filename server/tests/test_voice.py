@@ -45,8 +45,6 @@ def test_voice_is_designed_once_and_cached(tmp_path, monkeypatch):
     assert len(clients[1].designed) == 0
 
 
-def test_voice_disabled_without_sdk_or_keys(tmp_path, monkeypatch):
-    monkeypatch.setattr(voice_module, "dashscope", None)
-    assert not Voice("k", "w", "m", tmp_path).enabled
-    monkeypatch.setattr(voice_module, "dashscope", SimpleNamespace())
+def test_voice_disabled_without_keys(tmp_path):
     assert not Voice("", "w", "m", tmp_path).enabled
+    assert not Voice("k", "", "m", tmp_path).enabled

@@ -1,241 +1,120 @@
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
-import { fetchPartner, remember, speak, streamChat, type Message, type PartnerInfo } from './api';
+import { useEffect, useState } from 'react';
+import { fetchPartner, type PartnerInfo } from './api';
+import { ChatTab } from './components/ChatTab';
+import { ImageTab } from './components/ImageTab';
+import { Portrait } from './components/Portrait';
+import { SetupGuide } from './components/SetupGuide';
+import { VideoTab } from './components/VideoTab';
 
-const HISTORY_KEY = 'ai-partner:history';
+const TABS = [
+  { id: 'chat', label: 'チャット' },
+  { id: 'image', label: '画像生成' },
+  { id: 'video', label: '動画生成' },
+] as const;
+type TabId = (typeof TABS)[number]['id'];
 
-function loadHistory(): Message[] {
-  try {
-    const saved = JSON.parse(localStorage.getItem(HISTORY_KEY) ?? '[]');
-    return Array.isArray(saved) ? saved : [];
-  } catch {
-    return [];
-  }
+function tabFromHash(): TabId {
+  const id = location.hash.slice(1);
+  return TABS.some((t) => t.id === id) ? (id as TabId) : 'chat';
 }
 
-function Avatar({ info, size }: { info: PartnerInfo | null; size: 'sm' | 'lg' }) {
-  if (info?.image) {
-    return <img className={`avatar avatar-${size}`} src="/api/partner/image" alt={info.name} />;
+function TabPanel({
+  tab,
+  info,
+  onPartnerChange,
+}: {
+  tab: TabId;
+  info: PartnerInfo;
+  onPartnerChange: (i: PartnerInfo) => void;
+}) {
+  switch (tab) {
+    case 'chat':
+      return <ChatTab info={info} />;
+    case 'image':
+      return <ImageTab info={info} onPartnerChange={onPartnerChange} />;
+    case 'video':
+      return <VideoTab info={info} />;
+    default: {
+      const unreachable: never = tab;
+      return unreachable;
+    }
   }
-  return (
-    <div className={`avatar avatar-${size} avatar-initial`} aria-hidden>
-      {info?.name.slice(0, 1) ?? '…'}
-    </div>
-  );
 }
 
 export default function App() {
   const [info, setInfo] = useState<PartnerInfo | null>(null);
-  const [messages, setMessages] = useState<Message[]>(loadHistory);
-  const [input, setInput] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
-  const [speaking, setSpeaking] = useState<number | null>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [loadError, setLoadError] = useState('');
+  const [tab, setTab] = useState<TabId>(tabFromHash);
 
   useEffect(() => {
     fetchPartner()
-      .then((p) => {
-        setInfo(p);
-        document.title = `${p.name} とおしゃべり`;
-      })
-      .catch((e: Error) => setError(`サーバーに接続できません: ${e.message}`));
+      .then(setInfo)
+      .catch((e: Error) => setLoadError(e.message));
+    const onHash = () => setTab(tabFromHash());
+    addEventListener('hashchange', onHash);
+    return () => removeEventListener('hashchange', onHash);
   }, []);
 
   useEffect(() => {
-    if (!busy) localStorage.setItem(HISTORY_KEY, JSON.stringify(messages));
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [messages, busy]);
+    if (info) document.title = `${info.name} ・ AIパートナー`;
+  }, [info]);
 
-  async function send(text: string) {
-    const history: Message[] = [...messages, { role: 'user', content: text }];
-    setMessages([...history, { role: 'assistant', content: '' }]);
-    setInput('');
-    setError('');
-    setNotice('');
-    setBusy(true);
-    let reply = '';
-    let failed = '';
-    try {
-      for await (const ev of streamChat(history)) {
-        if (ev.type === 'delta') {
-          reply += ev.text;
-          setMessages([...history, { role: 'assistant', content: reply }]);
-        } else if (ev.type === 'error') {
-          failed = ev.message;
-        }
-      }
-    } catch (e) {
-      failed = `送信できませんでした: ${(e as Error).message}`;
-    }
-    if (failed || !reply) {
-      setMessages(messages);
-      setInput(text);
-      setError(failed || '返事が空でした。もう一度送ってみてください。');
-    }
-    setBusy(false);
-    inputRef.current?.focus();
+  function selectTab(id: TabId) {
+    history.replaceState(null, '', `#${id}`);
+    setTab(id);
   }
-
-  function onSubmit(e: FormEvent) {
-    e.preventDefault();
-    const text = input.trim();
-    if (text && !busy && info?.ready) void send(text);
-  }
-
-  function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) onSubmit(e);
-  }
-
-  function reset() {
-    if (messages.length && !confirm('会話の履歴を消しますか？（記憶サーバーに保存した内容は消えません）'))
-      return;
-    setMessages([]);
-    setError('');
-    setNotice('');
-  }
-
-  async function saveMemory() {
-    setError('');
-    try {
-      await remember(messages);
-      setNotice('今日の会話を記憶に渡しました。書き出しには少し時間がかかります。');
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  }
-
-  async function play(index: number) {
-    setSpeaking(index);
-    setError('');
-    try {
-      const url = URL.createObjectURL(await speak(messages[index].content));
-      const audio = new Audio(url);
-      audio.onended = () => URL.revokeObjectURL(url);
-      await audio.play();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setSpeaking(null);
-    }
-  }
-
-  const name = info?.name ?? '';
 
   return (
-    <div className={`layout ${info?.image ? 'with-portrait' : ''}`}>
-      {info?.image && (
-        <aside className="portrait">
-          <img src="/api/partner/image" alt={`${name}の立ち絵`} />
-        </aside>
-      )}
-      <main className="chat">
-        <header className="chat-header">
-          <Avatar info={info} size="sm" />
-          <div className="title">
-            <h1>{name || '読み込み中…'}</h1>
-            {info && (
-              <p className="meta">
-                {info.mock ? (
-                  <span className="badge badge-mock">モック</span>
-                ) : (
-                  <span className="badge">{info.model}</span>
-                )}
-                {info.memory && <span className="badge">記憶あり</span>}
-                {info.voice && <span className="badge">声あり</span>}
-              </p>
-            )}
-          </div>
-          <div className="actions">
-            {info?.memory && (
-              <button type="button" onClick={saveMemory} disabled={busy || messages.length === 0}>
-                今日の会話を覚えてもらう
-              </button>
-            )}
-            <button type="button" className="ghost" onClick={reset} disabled={busy}>
-              リセット
-            </button>
-          </div>
-        </header>
-
-        {info && !info.ready && (
-          <div className="banner banner-setup">
-            APIキーが設定されていません。<code>.env</code> に <code>DASHSCOPE_API_KEY</code>{' '}
-            を書いて、起動し直してください。
-          </div>
-        )}
-
-        <section className="messages" aria-live="polite">
-          {messages.length === 0 && info?.ready && (
-            <div className="empty">
-              <Avatar info={info} size="lg" />
-              <p>
-                {name}に話しかけてみましょう。
-                <br />
-                たとえば「ただいま」。
-              </p>
+    <div className="app">
+      <aside className="partner-card" aria-label="パートナー">
+        <div className="partner-figure">
+          <Portrait info={info} variant="hero" />
+        </div>
+        <div className="partner-meta">
+          <p className="eyebrow">あなたのパートナー</p>
+          <h1>{info?.name ?? '読み込み中…'}</h1>
+          {info && (
+            <div className="tags">
+              <span className={`tag ${info.mock ? 'tag-mock' : ''}`}>
+                {info.mock ? 'モック' : info.model}
+              </span>
+              {info.memory && <span className="tag">記憶</span>}
+              {info.voice && <span className="tag">声</span>}
+              {!info.ready && <span className="tag tag-warn">キー未設定</span>}
             </div>
           )}
-          {messages.map((m, i) => (
-            <div key={i} className={`row row-${m.role}`}>
-              {m.role === 'assistant' && <Avatar info={info} size="sm" />}
-              <div className="bubble">
-                {m.content || (
-                  <span className="typing" aria-label="入力中">
-                    <i />
-                    <i />
-                    <i />
-                  </span>
-                )}
-                {m.role === 'assistant' &&
-                  info?.voice &&
-                  m.content &&
-                  !(busy && i === messages.length - 1) && (
-                    <button
-                      type="button"
-                      className="speak"
-                      onClick={() => play(i)}
-                      disabled={speaking !== null}
-                      aria-label="読み上げる"
-                      title="読み上げる"
-                    >
-                      {speaking === i ? '…' : '▶'}
-                    </button>
-                  )}
-              </div>
-            </div>
-          ))}
-          <div ref={bottomRef} />
-        </section>
+        </div>
+        <p className="partner-note">{info?.name ?? 'パートナー'}はAIが演じるキャラクターです。</p>
+      </aside>
 
-        {error && (
-          <div className="banner banner-error" role="alert">
-            {error}
+      <main className="main">
+        <nav className="tabs" role="tablist" aria-label="機能">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={tab === t.id}
+              className={tab === t.id ? 'is-selected' : ''}
+              onClick={() => selectTab(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </nav>
+
+        {loadError && (
+          <div className="alert alert-error" role="alert">
+            サーバーに接続できません。start.py
+            のウィンドウが開いたままか確かめて、ページを再読み込みしてください。（{loadError}）
           </div>
         )}
-        {notice && <div className="banner banner-notice">{notice}</div>}
-
-        <form className="composer" onSubmit={onSubmit}>
-          <textarea
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={onKeyDown}
-            placeholder={
-              info?.ready
-                ? `${name}へのメッセージ（Enterで送信、Shift+Enterで改行）`
-                : 'APIキーの設定を待っています'
-            }
-            rows={2}
-            disabled={!info?.ready}
-            autoFocus
-          />
-          <button type="submit" disabled={busy || !input.trim() || !info?.ready}>
-            送信
-          </button>
-        </form>
-        <p className="footnote">{name || 'パートナー'}はAIが演じるキャラクターです。</p>
+        {info && !info.ready && <SetupGuide info={info} />}
+        {info && (
+          <div className={`panel panel-${tab}`} role="tabpanel">
+            <TabPanel tab={tab} info={info} onPartnerChange={setInfo} />
+          </div>
+        )}
       </main>
     </div>
   );
